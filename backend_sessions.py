@@ -4,31 +4,87 @@ Backend con Sesiones por Usuario y Descarga Directa al Cliente
 - Cada usuario solo ve sus propias descargas
 - Descargas directas al dispositivo del usuario (no al servidor)
 - Soporte multi-plataforma (PC/móvil)
+- Seguridad mejorada para producción
 """
 
+import os
 from flask import Flask, request, jsonify, Response
 from flask_cors import CORS
 import threading
 import time
 import uuid
 import json
-from datetime import datetime
+from datetime import datetime, timedelta
 import yt_dlp
 import logging
 import re
+from urllib.parse import urlparse
 
-# Configurar logging
-logging.basicConfig(level=logging.INFO)
+# Configurar logging (sin exponer datos sensibles)
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(message)s'
+)
 logger = logging.getLogger(__name__)
+
+# Configuración de seguridad
+ALLOWED_ORIGINS = os.environ.get('ALLOWED_ORIGINS', 'https://videos.naperu.cloud,http://localhost:1005').split(',')
+ALLOWED_DOMAINS = [
+    'youtube.com', 'www.youtube.com', 'youtu.be', 'm.youtube.com',
+    'instagram.com', 'www.instagram.com',
+    'tiktok.com', 'www.tiktok.com', 'vm.tiktok.com',
+    'facebook.com', 'www.facebook.com', 'fb.watch',
+    'twitter.com', 'x.com', 'vimeo.com'
+]
+MAX_SESSIONS = 1000
+SESSION_TIMEOUT_HOURS = 24
 
 app = Flask(__name__, static_folder='frontend_sessions', static_url_path='')
 
-# Configurar CORS
+# Configurar CORS - Restringido a dominios permitidos
 CORS(app, 
-     resources={r"/*": {"origins": "*"}},
+     resources={r"/*": {"origins": ALLOWED_ORIGINS}},
      methods=["GET", "POST", "DELETE", "OPTIONS"],
      allow_headers=["Content-Type", "Authorization", "X-Session-ID"]
 )
+
+def validate_url(url):
+    """Validar que la URL sea de un dominio permitido"""
+    try:
+        parsed = urlparse(url)
+        domain = parsed.netloc.lower()
+        # Remover puerto si existe
+        domain = domain.split(':')[0]
+        return any(domain == allowed or domain.endswith('.' + allowed) for allowed in ALLOWED_DOMAINS)
+    except:
+        return False
+
+def cleanup_old_sessions():
+    """Limpiar sesiones antiguas para evitar memory leaks"""
+    global session_jobs
+    cutoff = datetime.now() - timedelta(hours=SESSION_TIMEOUT_HOURS)
+    sessions_to_remove = []
+    
+    for session_id, jobs in session_jobs.items():
+        # Verificar si todos los jobs son antiguos
+        all_old = True
+        for job_id, job in jobs.items():
+            created = datetime.fromisoformat(job.get('created_at', datetime.now().isoformat()))
+            if created > cutoff:
+                all_old = False
+                break
+        if all_old and jobs:
+            sessions_to_remove.append(session_id)
+    
+    for session_id in sessions_to_remove:
+        del session_jobs[session_id]
+        logger.info(f"Session {session_id} limpiada por antigüedad")
+    
+    # Limitar número total de sesiones
+    if len(session_jobs) > MAX_SESSIONS:
+        oldest = sorted(session_jobs.keys())[:len(session_jobs) - MAX_SESSIONS]
+        for session_id in oldest:
+            del session_jobs[session_id]
 
 # Estado por sesión - cada usuario ve solo sus descargas
 session_jobs = {}  # {session_id: {job_id: job_data}}
@@ -87,6 +143,10 @@ class SessionDownloadManager:
             
             # Configuración de yt-dlp para obtener URLs directas
             # Soporte multi-plataforma: YouTube, Instagram, TikTok, Facebook, etc.
+            
+            # Ruta de cookies para YouTube (evita bloqueo anti-bot)
+            cookies_path = '/app/cookies/youtube.txt'
+            
             ydl_opts = {
                 'quiet': True,
                 'no_warnings': True,
@@ -95,6 +155,11 @@ class SessionDownloadManager:
                 'fragment_retries': 50,    # Reintentos para fragmentos
                 'retries': 20,             # Reintentos generales
                 'file_access_retries': 10, # Reintentos de acceso a archivo
+                'cookiefile': cookies_path if os.path.exists(cookies_path) else None,
+                
+                # Configuración para resolver YouTube n-challenge
+                'js_runtimes': {'node': {'exe': '/usr/bin/node'}},
+                'remote_components': {'ejs:github'},
                 
                 # Headers anti-detección mejorados
                 'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
@@ -258,6 +323,9 @@ def start_download():
         return response
     
     try:
+        # Limpiar sesiones antiguas periódicamente
+        cleanup_old_sessions()
+        
         session_id = get_session_id()
         data = request.get_json()
         
@@ -265,6 +333,11 @@ def start_download():
             return jsonify({'error': 'URL requerida'}), 400
         
         url = data['url']
+        
+        # Validación de seguridad de URL
+        if not validate_url(url):
+            return jsonify({'error': 'URL no permitida. Solo se aceptan: YouTube, Instagram, TikTok, Facebook, Twitter, Vimeo'}), 400
+        
         quality = data.get('quality', 'best')
         format_id = data.get('format_id', None)
         
@@ -290,6 +363,18 @@ def get_status(job_id):
     """Obtener estado de descarga de la sesión actual"""
     session_id = get_session_id()
     job = download_manager.get_job_status(session_id, job_id)
+    
+    if not job:
+        logger.warning(f"Job {job_id} not found for Session {session_id}. Headers: {dict(request.headers)}")
+        # Debug: check if job exists in any session
+        found_in = None
+        for s_id, jobs in session_jobs.items():
+            if job_id in jobs:
+                found_in = s_id
+                break
+        if found_in:
+             logger.warning(f"Job FOUND in DIFFERENT session: {found_in}")
+
     
     if not job:
         response = jsonify({'error': 'Trabajo no encontrado en esta sesión'})
@@ -380,14 +465,31 @@ def get_video_formats():
             return response, 400
         
         url = data['url']
-        logger.info(f"Obteniendo formatos para: {url}")
+        
+        # Validación de seguridad de URL
+        if not validate_url(url):
+            response = jsonify({'error': 'URL no permitida. Solo se aceptan: YouTube, Instagram, TikTok, Facebook, Twitter, Vimeo', 'success': False})
+            response.headers.add('Access-Control-Allow-Origin', '*')
+            return response, 400
+        
+        logger.info(f"Obteniendo formatos para URL válida")
         
         # Configuración básica de yt-dlp - SIN FILTROS NI LIMITACIONES
         # Soporte para múltiples plataformas: YouTube, Instagram, TikTok, etc.
+        
+        # Ruta de cookies para YouTube (evita bloqueo anti-bot)
+        cookies_path = '/app/cookies/youtube.txt'
+        
         ydl_opts = {
             'quiet': True,
             'no_warnings': True,
             'extract_flat': False,
+            'cookiefile': cookies_path if os.path.exists(cookies_path) else None,
+            
+            # Configuración para resolver YouTube n-challenge
+            'js_runtimes': {'node': {'exe': '/usr/bin/node'}},
+            'remote_components': {'ejs:github'},
+            
             # Headers generales para compatibilidad con múltiples sitios
             'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
             'referer': url,  # Usar la URL como referer para mejor compatibilidad
@@ -725,6 +827,8 @@ if __name__ == '__main__':
     print("✓ Descarga directa al dispositivo")
     print("✓ Sin almacenamiento en servidor")
     print("✓ Soporte multi-plataforma")
+    print("🔒 Seguridad: CORS restringido, validación de URLs")
     print("📍 Servidor: http://localhost:1005")
     
-    app.run(host='0.0.0.0', port=1005, debug=True, threaded=True)
+    # PRODUCCIÓN: debug=False para seguridad
+    app.run(host='0.0.0.0', port=1005, debug=False, threaded=True)

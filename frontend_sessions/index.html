@@ -1,0 +1,823 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Video Downloader ✨</title>
+    <meta name="description" content="Descarga tus videos favoritos">
+    <meta name="robots" content="noindex, nofollow">
+    <meta name="theme-color" content="#f8b4c4">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+
+    <!-- Favicon inline SVG as data URI -->
+    <link rel="icon"
+        href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>💕</text></svg>">
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --pink-50: #fdf2f4;
+            --pink-100: #fce7ec;
+            --pink-200: #f8ccd8;
+            --pink-300: #f4a7bd;
+            --pink-400: #ee7a9a;
+            --pink-500: #e54d7a;
+            --pink-soft: #f8b4c4;
+            --rose: #e8a0b0;
+            --rose-gold: #d4a5a5;
+            --cream: #fff9f9;
+            --bg: linear-gradient(160deg, #fff5f7 0%, #ffeef2 50%, #fff0f3 100%);
+            --text: #5c4a5a;
+            --text-light: #8a7888;
+            --success: #7bc49f;
+            --error: #e88a9a;
+            --shadow: rgba(232, 160, 176, 0.25);
+            --glow: rgba(248, 180, 196, 0.4);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        html {
+            font-size: 16px;
+        }
+
+        body {
+            font-family: 'Nunito', sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+            min-height: 100dvh;
+            overflow-x: hidden;
+        }
+
+        /* Animated hearts background */
+        .bg-hearts {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: -1;
+            overflow: hidden;
+            pointer-events: none;
+        }
+
+        .heart {
+            position: absolute;
+            font-size: 1.5rem;
+            opacity: 0.15;
+            animation: floatHeart 15s infinite ease-in-out;
+        }
+
+        @keyframes floatHeart {
+
+            0%,
+            100% {
+                transform: translateY(0) rotate(0deg);
+            }
+
+            50% {
+                transform: translateY(-20px) rotate(10deg);
+            }
+        }
+
+        .container {
+            min-height: 100vh;
+            min-height: 100dvh;
+            display: flex;
+            flex-direction: column;
+            padding: 16px;
+            padding-top: env(safe-area-inset-top, 16px);
+            padding-bottom: env(safe-area-inset-bottom, 16px);
+        }
+
+        .card {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            background: rgba(255, 255, 255, 0.85);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border-radius: 32px;
+            padding: 28px 20px;
+            box-shadow:
+                0 10px 40px var(--shadow),
+                0 2px 10px rgba(0, 0, 0, 0.03),
+                inset 0 1px 0 rgba(255, 255, 255, 0.9);
+            border: 1px solid rgba(248, 180, 196, 0.2);
+        }
+
+        /* Logo */
+        .logo {
+            text-align: center;
+            margin-bottom: 28px;
+        }
+
+        .logo-icon {
+            width: 72px;
+            height: 72px;
+            margin: 0 auto 16px;
+            background: linear-gradient(135deg, var(--pink-300), var(--rose));
+            border-radius: 22px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 36px;
+            box-shadow:
+                0 8px 24px var(--shadow),
+                inset 0 2px 4px rgba(255, 255, 255, 0.4);
+            animation: gentlePulse 3s ease-in-out infinite;
+        }
+
+        @keyframes gentlePulse {
+
+            0%,
+            100% {
+                transform: scale(1);
+                box-shadow: 0 8px 24px var(--shadow);
+            }
+
+            50% {
+                transform: scale(1.02);
+                box-shadow: 0 12px 32px var(--glow);
+            }
+        }
+
+        .logo h1 {
+            font-size: 1.5rem;
+            font-weight: 800;
+            color: var(--pink-500);
+            letter-spacing: -0.5px;
+        }
+
+        .logo p {
+            color: var(--text-light);
+            font-size: 0.9rem;
+            margin-top: 6px;
+            font-weight: 500;
+        }
+
+        /* Platforms */
+        .platforms {
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+            margin-bottom: 24px;
+            flex-wrap: wrap;
+        }
+
+        .platform {
+            padding: 8px 14px;
+            border-radius: 50px;
+            background: var(--pink-100);
+            font-size: 0.8rem;
+            font-weight: 600;
+            color: var(--pink-500);
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            transition: all 0.3s ease;
+        }
+
+        .platform:active {
+            transform: scale(0.95);
+        }
+
+        /* Form wrapper - takes remaining space */
+        .form-wrapper {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* Input */
+        .input-wrapper {
+            position: relative;
+            margin-bottom: 16px;
+        }
+
+        .input-wrapper input {
+            width: 100%;
+            padding: 18px 100px 18px 50px;
+            border: 2px solid var(--pink-200);
+            border-radius: 18px;
+            background: white;
+            color: var(--text);
+            font-size: 1rem;
+            font-family: 'Nunito', sans-serif;
+            font-weight: 500;
+            transition: all 0.3s ease;
+            outline: none;
+            -webkit-appearance: none;
+        }
+
+        .input-wrapper input:focus {
+            border-color: var(--pink-400);
+            box-shadow: 0 0 0 4px rgba(238, 122, 154, 0.15);
+        }
+
+        .input-wrapper input::placeholder {
+            color: var(--text-light);
+        }
+
+        .input-icon {
+            position: absolute;
+            left: 18px;
+            top: 50%;
+            transform: translateY(-50%);
+            font-size: 1.2rem;
+        }
+
+        .input-search-btn {
+            position: absolute;
+            right: 8px;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 40px;
+            height: 40px;
+            border: none;
+            border-radius: 12px;
+            background: linear-gradient(135deg, var(--pink-300), var(--pink-400));
+            color: white;
+            font-size: 1.1rem;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s ease;
+        }
+
+        .input-search-btn:active {
+            transform: translateY(-50%) scale(0.95);
+        }
+
+        .input-clear-btn {
+            position: absolute;
+            right: 56px;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 32px;
+            height: 32px;
+            border: none;
+            border-radius: 50%;
+            background: var(--pink-100);
+            color: var(--pink-400);
+            font-size: 1rem;
+            cursor: pointer;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s ease;
+        }
+
+        .input-clear-btn.show {
+            display: flex;
+        }
+
+        .input-clear-btn:hover {
+            background: var(--pink-200);
+        }
+
+        .input-clear-btn:active {
+            transform: translateY(-50%) scale(0.9);
+        }
+
+        /* Select */
+        .select-wrapper {
+            position: relative;
+            margin-bottom: 16px;
+        }
+
+        .select-wrapper select {
+            width: 100%;
+            padding: 16px 48px 16px 20px;
+            border: 2px solid var(--pink-200);
+            border-radius: 18px;
+            background: white;
+            color: var(--text);
+            font-size: 0.95rem;
+            font-family: 'Nunito', sans-serif;
+            font-weight: 600;
+            cursor: pointer;
+            outline: none;
+            -webkit-appearance: none;
+            appearance: none;
+            transition: all 0.3s ease;
+        }
+
+        .select-wrapper select:focus {
+            border-color: var(--pink-400);
+            box-shadow: 0 0 0 4px rgba(238, 122, 154, 0.15);
+        }
+
+        .select-wrapper::after {
+            content: '▼';
+            position: absolute;
+            right: 18px;
+            top: 50%;
+            transform: translateY(-50%);
+            font-size: 0.65rem;
+            color: var(--pink-400);
+            pointer-events: none;
+        }
+
+        /* Buttons */
+        .btn-group {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            margin-top: auto;
+        }
+
+        .btn {
+            width: 100%;
+            padding: 18px 24px;
+            border: none;
+            border-radius: 18px;
+            font-size: 1rem;
+            font-weight: 700;
+            font-family: 'Nunito', sans-serif;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            -webkit-appearance: none;
+        }
+
+        .btn:active {
+            transform: scale(0.98);
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, var(--pink-400), var(--pink-500));
+            color: white;
+            box-shadow: 0 6px 20px rgba(238, 122, 154, 0.35);
+        }
+
+        .btn-primary:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+        .btn-secondary {
+            background: white;
+            border: 2px solid var(--pink-200);
+            color: var(--pink-500);
+        }
+
+        /* Status */
+        .status {
+            margin-top: 16px;
+            padding: 14px 16px;
+            border-radius: 16px;
+            display: none;
+            align-items: center;
+            gap: 10px;
+            font-weight: 600;
+            font-size: 0.9rem;
+        }
+
+        .status.show {
+            display: flex;
+            animation: fadeIn 0.3s ease;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(-8px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .status.loading {
+            background: var(--pink-100);
+            color: var(--pink-500);
+        }
+
+        .status.success {
+            background: #e8f5ed;
+            color: #4a8c6a;
+        }
+
+        .status.error {
+            background: #fce7ec;
+            color: #c45a6a;
+        }
+
+        /* Video Info */
+        .video-info {
+            margin-top: 16px;
+            padding: 16px;
+            background: var(--pink-50);
+            border-radius: 18px;
+            border: 1px solid var(--pink-200);
+            display: none;
+        }
+
+        .video-info.show {
+            display: block;
+            animation: fadeIn 0.3s ease;
+        }
+
+        .video-thumbnail {
+            width: 100%;
+            height: auto;
+            aspect-ratio: 16/9;
+            object-fit: cover;
+            border-radius: 14px;
+            margin-bottom: 14px;
+        }
+
+        .video-title {
+            font-weight: 700;
+            font-size: 0.95rem;
+            margin-bottom: 8px;
+            line-height: 1.4;
+            color: var(--text);
+        }
+
+        .video-meta {
+            color: var(--text-light);
+            font-size: 0.85rem;
+            font-weight: 600;
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+
+        /* Spinner */
+        .spinner {
+            width: 18px;
+            height: 18px;
+            border: 2px solid rgba(238, 122, 154, 0.3);
+            border-top-color: var(--pink-500);
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+
+        @keyframes spin {
+            to {
+                transform: rotate(360deg);
+            }
+        }
+
+        /* Footer */
+        .footer {
+            text-align: center;
+            margin-top: 20px;
+            padding-top: 16px;
+            border-top: 1px solid var(--pink-100);
+        }
+
+        .footer p {
+            color: var(--text-light);
+            font-size: 0.8rem;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+        }
+
+        /* Extra small phones */
+        @media (max-height: 600px) {
+            .logo-icon {
+                width: 56px;
+                height: 56px;
+                font-size: 28px;
+            }
+
+            .logo h1 {
+                font-size: 1.25rem;
+            }
+
+            .logo {
+                margin-bottom: 20px;
+            }
+
+            .platforms {
+                margin-bottom: 16px;
+                gap: 6px;
+            }
+
+            .platform {
+                padding: 6px 10px;
+                font-size: 0.75rem;
+            }
+
+            .btn {
+                padding: 14px 20px;
+            }
+        }
+
+        /* Larger phones / tablets */
+        @media (min-width: 480px) {
+            .container {
+                padding: 24px;
+            }
+
+            .card {
+                max-width: 420px;
+                margin: 0 auto;
+                padding: 36px 28px;
+            }
+
+            .logo-icon {
+                width: 80px;
+                height: 80px;
+                font-size: 40px;
+            }
+
+            .logo h1 {
+                font-size: 1.75rem;
+            }
+        }
+
+        /* Desktop */
+        @media (min-width: 768px) {
+            .container {
+                justify-content: center;
+                padding: 40px;
+            }
+
+            .card {
+                flex: 0;
+                max-width: 480px;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="bg-hearts">
+        <span class="heart" style="left: 5%; top: 10%; animation-delay: 0s;">💕</span>
+        <span class="heart" style="left: 85%; top: 15%; animation-delay: 2s;">🌸</span>
+        <span class="heart" style="left: 15%; top: 70%; animation-delay: 4s;">✨</span>
+        <span class="heart" style="left: 75%; top: 80%; animation-delay: 1s;">💗</span>
+        <span class="heart" style="left: 45%; top: 5%; animation-delay: 3s;">🌷</span>
+    </div>
+
+    <div class="container">
+        <div class="card">
+            <div class="logo">
+                <div class="logo-icon">💕</div>
+                <h1>Video Downloader</h1>
+                <p>Descarga tus videos favoritos ✨</p>
+            </div>
+
+            <div class="platforms">
+                <span class="platform">▶️ YouTube</span>
+                <span class="platform">📸 Instagram</span>
+                <span class="platform">🎵 TikTok</span>
+            </div>
+
+            <div class="form-wrapper">
+                <div class="input-wrapper">
+                    <span class="input-icon">🔗</span>
+                    <input type="url" id="videoUrl" placeholder="Pega aquí el link..." autocomplete="off"
+                        spellcheck="false" inputmode="url" oninput="toggleClearBtn()">
+                    <button id="clearBtn" class="input-clear-btn" onclick="clearUrl()" title="Limpiar">✕</button>
+                    <button class="input-search-btn" onclick="getFormats()" title="Buscar">🔍</button>
+                </div>
+
+                <div class="select-wrapper">
+                    <select id="qualitySelect">
+                        <option value="best">⭐ Mejor calidad</option>
+                    </select>
+                </div>
+
+                <div class="btn-group">
+                    <button id="getFormatsBtn" class="btn btn-secondary" onclick="getFormats()">
+                        🔍 Ver calidades
+                    </button>
+                    <button id="downloadBtn" class="btn btn-primary" onclick="startDownload()">
+                        ⬇️ Descargar
+                    </button>
+                </div>
+
+                <div id="status" class="status"></div>
+
+                <div id="videoInfo" class="video-info">
+                    <img id="thumbnail" class="video-thumbnail" src="" alt="Thumbnail" style="display: none;">
+                    <div class="video-title" id="videoTitle"></div>
+                    <div class="video-meta">
+                        <span id="uploader">👤 --</span>
+                        <span id="duration">⏱️ --</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="footer">
+                <p>🔒 Descarga directa a tu cel</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const SESSION_ID = localStorage.getItem('session_id') || (() => {
+            const id = 'sess_' + Math.random().toString(36).substr(2, 12);
+            localStorage.setItem('session_id', id);
+            return id;
+        })();
+
+        const API_HEADERS = {
+            'Content-Type': 'application/json',
+            'X-Session-ID': SESSION_ID
+        };
+
+        function showStatus(message, type = 'loading') {
+            const status = document.getElementById('status');
+            status.className = `status show ${type}`;
+            status.innerHTML = type === 'loading'
+                ? `<div class="spinner"></div><span>${message}</span>`
+                : `<span>${message}</span>`;
+        }
+
+        function toggleClearBtn() {
+            const input = document.getElementById('videoUrl');
+            const clearBtn = document.getElementById('clearBtn');
+            if (input.value.trim()) {
+                clearBtn.classList.add('show');
+            } else {
+                clearBtn.classList.remove('show');
+            }
+        }
+
+        function clearUrl() {
+            const input = document.getElementById('videoUrl');
+            input.value = '';
+            toggleClearBtn();
+            document.getElementById('videoInfo').classList.remove('show');
+            document.getElementById('status').classList.remove('show');
+            document.getElementById('qualitySelect').innerHTML = '<option value="best">⭐ Mejor calidad</option>';
+            input.focus();
+        }
+
+        function formatDuration(seconds) {
+            if (!seconds) return '--';
+            const h = Math.floor(seconds / 3600);
+            const m = Math.floor((seconds % 3600) / 60);
+            const s = seconds % 60;
+            if (h > 0) return `${h}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+            return `${m}:${s.toString().padStart(2, '0')}`;
+        }
+
+        async function getFormats() {
+            const url = document.getElementById('videoUrl').value.trim();
+            if (!url) {
+                showStatus('💭 Pega un link primero', 'error');
+                return;
+            }
+
+            const btn = document.getElementById('getFormatsBtn');
+            btn.disabled = true;
+            showStatus('Analizando video...');
+
+            try {
+                const response = await fetch('/formats', {
+                    method: 'POST',
+                    headers: API_HEADERS,
+                    body: JSON.stringify({ url })
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    const videoInfo = document.getElementById('videoInfo');
+                    videoInfo.className = 'video-info show';
+
+                    document.getElementById('videoTitle').textContent = data.video_info.title;
+                    document.getElementById('uploader').innerHTML = `👤 ${data.video_info.uploader || 'Desconocido'}`;
+                    document.getElementById('duration').innerHTML = `⏱️ ${formatDuration(data.video_info.duration)}`;
+
+                    const thumbnail = document.getElementById('thumbnail');
+                    if (data.video_info.thumbnail) {
+                        thumbnail.src = data.video_info.thumbnail;
+                        thumbnail.style.display = 'block';
+                    } else {
+                        thumbnail.style.display = 'none';
+                    }
+
+                    const select = document.getElementById('qualitySelect');
+                    select.innerHTML = data.common_qualities.map(q =>
+                        `<option value="${q.value}">${q.label}</option>`
+                    ).join('');
+
+                    showStatus('✨ ¡Listo! Elige calidad', 'success');
+                } else {
+                    showStatus(`😢 ${data.error}`, 'error');
+                }
+            } catch (error) {
+                showStatus('😢 Error de conexión', 'error');
+            } finally {
+                btn.disabled = false;
+            }
+        }
+
+        async function startDownload() {
+            const url = document.getElementById('videoUrl').value.trim();
+            const quality = document.getElementById('qualitySelect').value;
+
+            if (!url) {
+                showStatus('💭 Pega un link primero', 'error');
+                return;
+            }
+
+            const btn = document.getElementById('downloadBtn');
+            btn.disabled = true;
+            showStatus('Preparando...');
+
+            try {
+                const response = await fetch('/start', {
+                    method: 'POST',
+                    headers: API_HEADERS,
+                    body: JSON.stringify({ url, quality })
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    pollDownloadStatus(data.job_id);
+                } else {
+                    showStatus(`😢 ${data.error}`, 'error');
+                    btn.disabled = false;
+                }
+            } catch (error) {
+                showStatus('😢 Error de conexión', 'error');
+                btn.disabled = false;
+            }
+        }
+
+        async function pollDownloadStatus(jobId) {
+            const maxAttempts = 60;
+            let attempts = 0;
+
+            const poll = async () => {
+                try {
+                    const response = await fetch(`/status/${jobId}`, { headers: API_HEADERS });
+                    const data = await response.json();
+
+                    if (data.status === 'ready') {
+                        const dlResponse = await fetch(`/download/${jobId}`, { headers: API_HEADERS });
+                        const dlData = await dlResponse.json();
+
+                        if (dlData.download_url) {
+                            showStatus('✨ ¡Descargando!', 'success');
+
+                            const a = document.createElement('a');
+                            a.href = dlData.download_url;
+                            a.download = dlData.filename;
+                            a.target = '_blank';
+                            a.rel = 'noopener noreferrer';
+                            document.body.appendChild(a);
+                            a.click();
+                            document.body.removeChild(a);
+                        }
+
+                        document.getElementById('downloadBtn').disabled = false;
+                    } else if (data.status === 'error') {
+                        showStatus(`😢 ${data.error}`, 'error');
+                        document.getElementById('downloadBtn').disabled = false;
+                    } else if (data.status === 'processing') {
+                        showStatus('Procesando...');
+                        if (++attempts < maxAttempts) {
+                            setTimeout(poll, 1000);
+                        } else {
+                            showStatus('⏰ Tardó mucho', 'error');
+                            document.getElementById('downloadBtn').disabled = false;
+                        }
+                    }
+                } catch (error) {
+                    showStatus('😢 Error', 'error');
+                    document.getElementById('downloadBtn').disabled = false;
+                }
+            };
+
+            poll();
+        }
+
+        document.getElementById('videoUrl').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                getFormats();
+            }
+        });
+    </script>
+</body>
+
+</html>
